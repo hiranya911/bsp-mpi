@@ -6,17 +6,19 @@ import org.apache.hadoop.io.Text;
 import org.apache.hama.bsp.BSP;
 import org.apache.hama.bsp.BSPPeer;
 import org.apache.hama.bsp.sync.SyncException;
-import sun.misc.Signal;
-import sun.misc.SignalHandler;
 
 import java.io.*;
-import java.lang.management.ManagementFactory;
 import java.util.UUID;
 
 public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         NullWritable,NullWritable> {
 
     private static final Object lock = new Object();
+
+    public static void main(String[] args) throws Exception {
+        MPI2BSPTask task = new MPI2BSPTask();
+        task.bsp(null);
+    }
 
     @Override
     public void bsp(BSPPeer<NullWritable, NullWritable, Text,
@@ -26,68 +28,52 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         String jobId = UUID.randomUUID().toString().replaceAll("-", "");
         File jobDir = new File("/tmp/jobs", jobId);
         jobDir.mkdirs();
+        File inputMetaFile = new File(jobDir, "input.meta");
+        File outputMetaFile = new File(jobDir, "output.meta");
+        Process p = Runtime.getRuntime().exec("mkfifo " + inputMetaFile.getAbsolutePath());
+        p.waitFor();
+        p = Runtime.getRuntime().exec("mkfifo " + outputMetaFile.getAbsolutePath());
+        p.waitFor();
+        write(peer, "Created named pipes");
 
         Configuration configuration = peer.getConfiguration();
         String cmd = configuration.get(MPI2BSPJob.MPI_BINARY_PATH);
-
-        Signal signal = new Signal("USR1");
-        Signal.handle(signal, new MPI2BSPSignalHandler());
-        int pid = getProcessId();
-
-        File inputMetaFile = new File(jobDir, "input.meta");
-        File outputMetaFile = new File(jobDir, "output.meta");
+        //String cmd = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
 
         String[] env = new String[] {
                 "bsp.mpi.imf=" + inputMetaFile.getAbsolutePath(),
-                "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath(),
-                "bsp.mpi.parent=" + pid
+                "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath()
         };
         Process process = Runtime.getRuntime().exec(cmd, env);
+        write(peer, "Started MPI process");
 
-        int childProcess = -1;
         boolean finished = false;
+        BufferedReader reader = new BufferedReader(new FileReader(inputMetaFile));
+        System.out.println("Opened reader");
+        BufferedWriter writer = new BufferedWriter(new FileWriter(outputMetaFile));
+        System.out.println("Opened writer");
         while (!finished) {
-            synchronized (lock) {
-                if (!inputMetaFile.exists()) {
-                    try {
-                        int status = process.exitValue();
-                        write(peer, "Process exited with status " + status);
-                        break;
-                    } catch (IllegalThreadStateException e) {
-                        lock.wait(10000);
-                        continue;
-                    }
-                }
+            MPIFunctionData function = new MPIFunctionData(reader);
+            String functionName = function.getFunctionName();
+            write(peer, functionName);
+            if ("MPI_Init".equals(functionName)) {
 
-                BufferedReader reader = new BufferedReader(new FileReader(inputMetaFile));
-                String line = reader.readLine();
-                if ("MPI_Init".equals(line)) {
-                    childProcess = Integer.parseInt(reader.readLine());
-                } else if ("MPI_Comm_rank".equals(line)) {
-                    File tempFile = new File(jobDir, "temp");
-                    BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile));
-                    writer.write(peer.getPeerIndex() + "\n");
-                    writer.close();
-                    tempFile.renameTo(outputMetaFile);
-                } else if ("MPI_Comm_size".equals(line)) {
-                    File tempFile = new File(jobDir, "temp");
-                    BufferedWriter writer = new BufferedWriter(new FileWriter(tempFile));
-                    writer.write(peer.getAllPeerNames().length + "\n");
-                    writer.close();
-                    tempFile.renameTo(outputMetaFile);
-                } else if ("MPI_Finalize".equals(line)) {
-                    finished = true;
-                } else {
-                    throw new RuntimeException("Unrecognized function call: " + line);
-                }
-
-                reader.close();
-                if (!inputMetaFile.delete()) {
-                    write(peer, "Failed to delete return file");
-                }
-                interrupt(childProcess);
+            } else if ("MPI_Comm_rank".equals(functionName)) {
+                writer.write(peer.getPeerIndex() + "\n");
+                //writer.write("0\n");
+                writer.flush();
+            } else if ("MPI_Comm_size".equals(functionName)) {
+                writer.write(peer.getNumPeers() + "\n");
+                //writer.write("1\n");
+                writer.flush();
+            } else if ("MPI_Finalize".equals(functionName)) {
+                finished = true;
+            } else {
+                throw new RuntimeException("Unrecognized function call: " + functionName);
             }
         }
+        reader.close();
+        writer.close();
 
         BufferedReader out = new BufferedReader(new InputStreamReader(
                 process.getInputStream()));
@@ -98,37 +84,14 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         out.close();
         process.waitFor();
 
+        inputMetaFile.delete();
+        outputMetaFile.delete();
         jobDir.delete();
-    }
-
-    private void interrupt(int processId) throws IOException {
-        if (processId < 0) {
-            throw new RuntimeException("Negative process ID");
-        }
-        String command = "kill -SIGUSR1 " + processId;
-        Runtime.getRuntime().exec(command);
-    }
-
-    private int getProcessId() {
-        String jvmName = ManagementFactory.getRuntimeMXBean().getName();
-        int index = jvmName.indexOf('@');
-        if (index < 1) {
-            throw new RuntimeException("Failed to obtain local process ID");
-        }
-        return Integer.parseInt(jvmName.substring(0, index));
-    }
-
-    private static class MPI2BSPSignalHandler implements SignalHandler {
-        @Override
-        public void handle(Signal signal) {
-            synchronized (lock) {
-                lock.notifyAll();
-            }
-        }
     }
 
     private void write(BSPPeer<NullWritable, NullWritable, Text,
             NullWritable, NullWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
+        //System.out.println(msg);
     }
 }
