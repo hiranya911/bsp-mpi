@@ -46,7 +46,7 @@ int MPI_Comm_size(MPI_Comm comm, int *size) {
     return -1;
   }
 
-  fprintf(input, "MPI_Comm_size\n\n");
+  fprintf(input, "MPI_Comm_size\ncomm=%d\n\n", comm);
   fflush(input);
   fscanf(output, "%d", size);
   return 0;

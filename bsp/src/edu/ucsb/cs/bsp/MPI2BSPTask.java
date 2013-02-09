@@ -21,7 +21,9 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
 
     public static void main(String[] args) throws Exception {
         MPI2BSPTask task = new MPI2BSPTask();
+        task.setup(null);
         task.bsp(null);
+        task.cleanup(null);
     }
 
     @Override
@@ -38,28 +40,15 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
             "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath()
         };
         Process process = Runtime.getRuntime().exec(cmd, env);
-        write(peer, "Started MPI process");
+        write(peer, "Started the MPI process");
 
         BufferedReader reader = new BufferedReader(new FileReader(inputMetaFile));
         BufferedWriter writer = new BufferedWriter(new FileWriter(outputMetaFile));
+        MPI2BSPRuntime runtime = new MPI2BSPRuntime(peer, process, writer);
         while (true) {
-            MPIFunctionData function = new MPIFunctionData(reader);
-            String functionName = function.getFunctionName();
-            write(peer, functionName);
-            if ("MPI_Init".equals(functionName)) {
-
-            } else if ("MPI_Comm_rank".equals(functionName)) {
-                writer.write(peer.getPeerIndex() + "\n");
-                //writer.write("0\n");
-                writer.flush();
-            } else if ("MPI_Comm_size".equals(functionName)) {
-                writer.write(peer.getNumPeers() + "\n");
-                //writer.write("1\n");
-                writer.flush();
-            } else if ("MPI_Finalize".equals(functionName)) {
+            MPIFunctionCall function = new MPIFunctionCall(reader);
+            if (!runtime.execute(function)) {
                 break;
-            } else {
-                throw new RuntimeException("Unrecognized function call: " + functionName);
             }
         }
         reader.close();
@@ -96,7 +85,7 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         FileUtils.deleteDirectory(jobDirectory);
     }
 
-    private void write(BSPPeer<NullWritable, NullWritable, Text,
+    public static void write(BSPPeer<NullWritable, NullWritable, Text,
             NullWritable, BytesWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
         //System.out.println(msg);
