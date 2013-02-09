@@ -1,6 +1,8 @@
 package edu.ucsb.cs.bsp;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hama.bsp.BSP;
@@ -11,9 +13,11 @@ import java.io.*;
 import java.util.UUID;
 
 public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
-        NullWritable,NullWritable> {
+        NullWritable,BytesWritable> {
 
-    private static final Object lock = new Object();
+    private File jobDirectory;
+    private File inputMetaFile;
+    private File outputMetaFile;
 
     public static void main(String[] args) throws Exception {
         MPI2BSPTask task = new MPI2BSPTask();
@@ -22,37 +26,23 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
 
     @Override
     public void bsp(BSPPeer<NullWritable, NullWritable, Text,
-            NullWritable, NullWritable> peer) throws IOException,
+            NullWritable, BytesWritable> peer) throws IOException,
             SyncException, InterruptedException {
-
-        String jobId = UUID.randomUUID().toString().replaceAll("-", "");
-        File jobDir = new File("/tmp/jobs", jobId);
-        jobDir.mkdirs();
-        File inputMetaFile = new File(jobDir, "input.meta");
-        File outputMetaFile = new File(jobDir, "output.meta");
-        Process p = Runtime.getRuntime().exec("mkfifo " + inputMetaFile.getAbsolutePath());
-        p.waitFor();
-        p = Runtime.getRuntime().exec("mkfifo " + outputMetaFile.getAbsolutePath());
-        p.waitFor();
-        write(peer, "Created named pipes");
 
         Configuration configuration = peer.getConfiguration();
         String cmd = configuration.get(MPI2BSPJob.MPI_BINARY_PATH);
         //String cmd = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
 
         String[] env = new String[] {
-                "bsp.mpi.imf=" + inputMetaFile.getAbsolutePath(),
-                "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath()
+            "bsp.mpi.imf=" + inputMetaFile.getAbsolutePath(),
+            "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath()
         };
         Process process = Runtime.getRuntime().exec(cmd, env);
         write(peer, "Started MPI process");
 
-        boolean finished = false;
         BufferedReader reader = new BufferedReader(new FileReader(inputMetaFile));
-        System.out.println("Opened reader");
         BufferedWriter writer = new BufferedWriter(new FileWriter(outputMetaFile));
-        System.out.println("Opened writer");
-        while (!finished) {
+        while (true) {
             MPIFunctionData function = new MPIFunctionData(reader);
             String functionName = function.getFunctionName();
             write(peer, functionName);
@@ -67,7 +57,7 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
                 //writer.write("1\n");
                 writer.flush();
             } else if ("MPI_Finalize".equals(functionName)) {
-                finished = true;
+                break;
             } else {
                 throw new RuntimeException("Unrecognized function call: " + functionName);
             }
@@ -83,14 +73,31 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         }
         out.close();
         process.waitFor();
+    }
 
-        inputMetaFile.delete();
-        outputMetaFile.delete();
-        jobDir.delete();
+    @Override
+    public void setup(BSPPeer<NullWritable, NullWritable, Text,
+            NullWritable, BytesWritable> peer) throws IOException,
+            SyncException, InterruptedException {
+        String jobId = UUID.randomUUID().toString().replaceAll("-", "");
+        jobDirectory = new File("/tmp/jobs", jobId);
+        FileUtils.forceMkdir(jobDirectory);
+        inputMetaFile = new File(jobDirectory, "input.meta");
+        Runtime.getRuntime().exec("mkfifo " +
+                inputMetaFile.getAbsolutePath()).waitFor();
+        outputMetaFile = new File(jobDirectory, "output.meta");
+        Runtime.getRuntime().exec("mkfifo " +
+                outputMetaFile.getAbsolutePath()).waitFor();
+    }
+
+    @Override
+    public void cleanup(BSPPeer<NullWritable, NullWritable, Text,
+            NullWritable, BytesWritable> peer) throws IOException {
+        FileUtils.deleteDirectory(jobDirectory);
     }
 
     private void write(BSPPeer<NullWritable, NullWritable, Text,
-            NullWritable, NullWritable> peer, String msg) throws IOException {
+            NullWritable, BytesWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
         //System.out.println(msg);
     }

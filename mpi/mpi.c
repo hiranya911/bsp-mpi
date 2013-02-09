@@ -1,12 +1,8 @@
-#include "mpi.h"
 #include <stdio.h>
 #include <unistd.h>
-#include <signal.h>
 #include <stdlib.h>
 
-char* get_input_meta_file();
-char* get_output_meta_file();
-void wait_for_output();
+#include "mpi.h"
 
 int INITIALIZED = 0;
 
@@ -16,12 +12,14 @@ FILE* output;
 int MPI_Init(int *argc, char ***argv) {
   INITIALIZED = 1;
 
-  input = fopen(get_input_meta_file(), "w");
+  char* input_path = getenv("bsp.mpi.imf"); 
+  input = fopen(input_path, "w");
   if (input == NULL) {
     return -1;
   }
 
-  output = fopen(get_output_meta_file(), "r");
+  char* output_path = getenv("bsp.mpi.omf");
+  output = fopen(output_path, "r");
   if (output == NULL) {
     return -1;
   }
@@ -73,15 +71,3 @@ int MPI_Recv(void* buffer, int count, MPI_Datatype type, int source, int tag, MP
 
 }
 
-char* get_input_meta_file() {
-  return (char*) getenv("bsp.mpi.imf");
-}
-
-char* get_output_meta_file() {
-  return (char*) getenv("bsp.mpi.omf");
-}
-
-void wait_for_output() {
-  char buffer[8];
-  fgets(buffer, 8, output);
-}
