@@ -28,6 +28,7 @@ int MPI_Init(int *argc, char ***argv) {
   fprintf(f, "%d\n", getpid());
   fclose(f);
   wait_for_output();
+  unlink(get_output_meta_file());
   return 0;
 }
 
@@ -44,12 +45,33 @@ int MPI_Finalize(void) {
   fprintf(f, "MPI_Finalize\n");
   fclose(f);
   wait_for_output();
-
+  unlink(get_output_meta_file());
   return 0;
 }
 
 int MPI_Comm_size(MPI_Comm comm, int *size) {
+  if (!INITIALIZED) {
+    return -1;
+  }
 
+  FILE* f;
+  f = fopen(get_input_meta_file(), "w");
+  if (f == NULL) {
+    return -1;
+  }
+  fprintf(f, "MPI_Comm_size\n");
+  fclose(f);
+  wait_for_output();
+
+  f = fopen(get_output_meta_file(), "r");
+  if (f == NULL) {
+    return -1;
+  }
+  fscanf(f, "%d", size);
+  fclose(f);
+  unlink(get_output_meta_file());
+
+  return 0;
 }
 
 int MPI_Comm_rank(MPI_Comm comm, int *rank) {
@@ -105,7 +127,6 @@ void wait_for_output() {
 
 void handle_signal(int signal) {
   if (signal == SIGUSR1) {
-    printf("Received signal from parent\n");
     pthread_mutex_lock(&lock);
     pthread_cond_signal(&condition);
     pthread_mutex_unlock(&lock);
