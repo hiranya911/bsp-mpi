@@ -17,18 +17,23 @@ public class MPIMessageStore {
         return instance;
     }
 
-    public synchronized void store(MPIFunctionCall function) {
+    public void store(MPIFunctionCall function) {
         store.add(function);
-        this.notifyAll();
     }
 
     public MPIFunctionCall getMessage(MPIFunctionCall function) {
         MPIFunctionCall functionCall = null;
         for (MPIFunctionCall call : store) {
-            if (call.getArgument("type").equals(function.getArgument("type")) &&
-                    call.getArgument("tag").equals(function.getArgument("tag")) &&
-                    call.getArgument("source").equals(function.getArgument("source"))) {
+            if (call.getArgument(MPIFunctionCall.MPI_TYPE).equals(
+                    function.getArgument(MPIFunctionCall.MPI_TYPE)) &&
+                    call.getArgument(MPIFunctionCall.MPI_TAG).equals(
+                            function.getArgument(MPIFunctionCall.MPI_TAG)) &&
+                    call.getArgument(MPIFunctionCall.MPI_SRC).equals(
+                            function.getArgument(MPIFunctionCall.MPI_SRC)) &&
+                    Integer.parseInt(call.getArgument(MPIFunctionCall.MPI_COUNT)) <=
+                            Integer.parseInt(function.getArgument(MPIFunctionCall.MPI_RECV_COUNT))) {
                 functionCall = call;
+                break;
             }
         }
         if (functionCall != null) {

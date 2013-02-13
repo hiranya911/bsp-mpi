@@ -12,6 +12,13 @@ import java.util.*;
 
 public class MPIFunctionCall {
 
+    public static final String MPI_COUNT = "count";
+    public static final String MPI_RECV_COUNT = "rcount";
+    public static final String MPI_TAG = "tag";
+    public static final String MPI_TYPE = "type";
+    public static final String MPI_SRC = "source";
+    public static final String MPI_DEST = "dest";
+
     private String functionName = null;
     private Map<String,String> arguments = new HashMap<String, String>();
     private byte[] buffer = null;
@@ -30,8 +37,8 @@ public class MPIFunctionCall {
             if (buffer == null) {
                 if (data[i] == '\n') {
                     if (prev == '\n') {
-                        if (arguments.containsKey("count")) {
-                            int count = Integer.parseInt(arguments.get("count"));
+                        if (arguments.containsKey(MPI_COUNT)) {
+                            int count = Integer.parseInt(arguments.get(MPI_COUNT));
                             buffer = new byte[count];
                         } else {
                             complete = true;
@@ -62,21 +69,20 @@ public class MPIFunctionCall {
 
     public boolean execute(BSPPeer<NullWritable,NullWritable,Text,
             NullWritable,BytesWritable> peer, OutputStream out) throws IOException {
-        System.out.println(functionName);
         if ("MPI_Init".equals(functionName)) {
             writeResponse("OK\0", out);
         } else if ("MPI_Comm_rank".equals(functionName)) {
             writeResponse(peer.getPeerIndex() + "\0", out);
-            //writeResponse("0\n\n\0", out);
+            //writeResponse("0\0", out);
         } else if ("MPI_Comm_size".equals(functionName)) {
             writeResponse(peer.getNumPeers() + "\0", out);
-            //writeResponse("1\n\n\0", out);
+            //writeResponse("1\0", out);
         } else if ("MPI_Finalize".equals(functionName)) {
             writeResponse("OK\0", out);
             return false;
         } else if ("MPI_Send".equals(functionName)) {
-            String dest = peer.getPeerName(Integer.parseInt(arguments.get("dest")));
-            arguments.put("source", String.valueOf(peer.getPeerIndex()));
+            String dest = peer.getPeerName(Integer.parseInt(arguments.get(MPI_DEST)));
+            arguments.put(MPI_SRC, String.valueOf(peer.getPeerIndex()));
             byte[] bytes = serialize();
             peer.send(dest, new BytesWritable(bytes));
             writeResponse("OK\0", out);
@@ -94,9 +100,15 @@ public class MPIFunctionCall {
 
             MPIFunctionCall functionCall = store.getMessage(this);
             if (functionCall != null) {
+                int length = functionCall.buffer.length;
+                byte[] bytes = new byte[4];
+                for (int i = 0; i < 4; i++) {
+                    bytes[i] = (byte)(length >>> (i * 8));
+                }
+                writeResponse(bytes, out);
                 writeResponse(functionCall.buffer, out);
             } else {
-                throw new IOException("No messages received");
+                throw new IOException("No matching messages received");
             }
         } else {
             throw new MPI2BSPException("Unrecognized function call: " + functionName);
