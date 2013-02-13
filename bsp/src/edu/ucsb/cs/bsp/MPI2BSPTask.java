@@ -11,16 +11,19 @@ import org.apache.hama.bsp.BSPPeer;
 import org.apache.hama.bsp.sync.SyncException;
 
 import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.URI;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         NullWritable,BytesWritable> {
 
     private File taskDirectory;
     private String mpiExecutable;
-    private File inputMetaFile;
-    private File outputMetaFile;
 
     public static void main(String[] args) throws Exception {
         MPI2BSPTask task = new MPI2BSPTask();
@@ -30,28 +33,38 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
     }
 
     @Override
-    public void bsp(BSPPeer<NullWritable, NullWritable, Text,
+    public void bsp(final BSPPeer<NullWritable, NullWritable, Text,
             NullWritable, BytesWritable> peer) throws IOException,
             SyncException, InterruptedException {
 
+        final ServerSocket serverSocket = new ServerSocket(0);
         String[] env = new String[] {
-            "bsp.mpi.imf=" + inputMetaFile.getAbsolutePath(),
-            "bsp.mpi.omf=" + outputMetaFile.getAbsolutePath()
+            "bsp.mpi.port=" + serverSocket.getLocalPort()
         };
         Process process = Runtime.getRuntime().exec(mpiExecutable, env);
         write(peer, "Started the MPI process");
 
-        BufferedReader reader = new BufferedReader(new FileReader(inputMetaFile));
-        BufferedWriter writer = new BufferedWriter(new FileWriter(outputMetaFile));
-        MPI2BSPRuntime runtime = new MPI2BSPRuntime(peer, process, writer);
-        while (true) {
-            MPIFunctionCall function = new MPIFunctionCall(reader);
-            if (!runtime.execute(function)) {
-                break;
+        ExecutorService exec = Executors.newCachedThreadPool();
+        AtomicBoolean status = new AtomicBoolean(true);
+        MPIDeadProcessCallback callback = new MPIDeadProcessCallback(serverSocket, status);
+        ProcessHealthChecker healthChecker = new ProcessHealthChecker(process, callback);
+        healthChecker.start();
+        while (status.get()) {
+            try {
+                Socket socket = serverSocket.accept();
+                MPIFunctionCallHandler handler = new MPIFunctionCallHandler(
+                        serverSocket, socket, status, peer);
+                exec.submit(handler);
+            } catch (IOException e) {
+                if (status.get()) {
+                    throw e;
+                } else {
+                    break;
+                }
             }
         }
-        reader.close();
-        writer.close();
+        exec.shutdown();
+        healthChecker.stop();
 
         BufferedReader out = new BufferedReader(new InputStreamReader(
                 process.getInputStream()));
@@ -60,7 +73,10 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
             write(peer, str);
         }
         out.close();
+
         process.waitFor();
+        int exitStatus = process.exitValue();
+        write(peer, "MPI process exited with status " + exitStatus);
     }
 
     @Override
@@ -79,13 +95,7 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         mpiExecutable = executable.getAbsolutePath();
         Path dest = new Path(mpiExecutable);
         fs.copyToLocalFile(false, src, dest);
-
-        inputMetaFile = new File(taskDirectory, "input.meta");
-        Runtime.getRuntime().exec("mkfifo " +
-                inputMetaFile.getAbsolutePath()).waitFor();
-        outputMetaFile = new File(taskDirectory, "output.meta");
-        Runtime.getRuntime().exec("mkfifo " +
-                outputMetaFile.getAbsolutePath()).waitFor();
+        //mpiExecutable = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
     }
 
     @Override
@@ -98,5 +108,27 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
             NullWritable, BytesWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
         //System.out.println(msg);
+    }
+
+    private class MPIDeadProcessCallback implements DeadProcessCallback {
+
+        private ServerSocket serverSocket;
+        private AtomicBoolean status;
+
+        private MPIDeadProcessCallback(ServerSocket serverSocket,
+                                       AtomicBoolean status) {
+            this.serverSocket = serverSocket;
+            this.status = status;
+        }
+
+        @Override
+        public void notifyDeadProcess(int s) {
+            if (status.compareAndSet(true, false)) {
+                try {
+                    serverSocket.close();
+                } catch (IOException ignore) {
+                }
+            }
+        }
     }
 }
