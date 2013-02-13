@@ -43,7 +43,7 @@ public class MPIFunctionCallHandler implements Runnable {
                     function.consume(data, 0, length);
                     if (function.isComplete()) {
                         if (!function.execute(peer, out)) {
-                            closeSilently(serverSocket);
+                            closeSilently();
                             proceed = false;
                         }
                         break;
@@ -54,18 +54,24 @@ public class MPIFunctionCallHandler implements Runnable {
                     throw new IOException("Socket closed prematurely");
                 }
             }
-        } catch (IOException e) {
-            closeSilently(serverSocket);
+        } catch (Exception e) {
+            closeSilently();
         }
     }
 
-    private void closeSilently(ServerSocket socket) {
+    private void closeSilently() {
         if (status.compareAndSet(true, false)) {
             try {
-                socket.close();
+                serverSocket.close();
             } catch (IOException ignored) {
 
             }
+        }
+
+        try {
+            socket.close();
+        } catch (IOException ignored) {
+
         }
     }
 }

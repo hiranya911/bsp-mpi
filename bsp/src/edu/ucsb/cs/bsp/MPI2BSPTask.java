@@ -107,8 +107,6 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
     public static void write(BSPPeer<NullWritable, NullWritable, Text,
             NullWritable, BytesWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
-        //writer.write(msg + "\n");
-        //writer.flush();
         //System.out.println(msg);
     }
 

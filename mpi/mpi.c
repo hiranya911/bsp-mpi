@@ -67,7 +67,7 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
     while (bytes_read < out_length) {
       int ret = recv(sockfd, output + bytes_read, out_length - bytes_read, 0);
       if (ret <= 0) {
-	break;
+	exit(1);
       } else {
 	bytes_read += ret;
 	char* char_output = (char*) output;
