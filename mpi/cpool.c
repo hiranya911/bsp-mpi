@@ -8,65 +8,101 @@
 
 #include "cpool.h"
 
-struct conn_pool* new_connection_pool(char* host, int port) {
-  struct conn_pool* pool = malloc(sizeof(struct conn_pool));
+struct connection_pool* new_connection_pool() {
+  struct connection_pool* pool = malloc(sizeof(struct connection_pool));
   pool->head = NULL;
   pool->tail = NULL;
-  pool->host = malloc(strlen(host) + 1);
-  strcpy(pool->host, host);
-  pool->port = port;
   pthread_mutex_init(&(pool->mutex), NULL);
   return pool;
 }
 
-void delete_connection_pool(struct conn_pool* pool) {
+void delete_connection_pool(struct connection_pool* pool) {
   while (pool->head != NULL) {
-    int sockfd = get(pool);
-    close(sockfd);
+    struct connection_list* list = pool->head;
+    while (list->head != NULL) {
+      int sockfd = get_connection(pool, list->host, list->port);
+      close(sockfd);
+    }
+    pool->head = list->next;
+    free(list->host);
+    free(list);
   }
   pthread_mutex_destroy(&(pool->mutex));
-  free(pool->host);
   free(pool);
 }
 
-int get(struct conn_pool* pool) {
+int get_connection(struct connection_pool* pool, char* host, int port) {
   int sockfd;
   pthread_mutex_lock(&(pool->mutex));
-  if (pool->head != NULL) {
-    struct node* node = pool->head;
-    pool->head = node->next;
-    if (pool->head == NULL) {
-      pool->tail = NULL;
+  struct connection_list* list = pool->head;
+  while (list != NULL) {
+    if (strcmp(list->host, host) == 0 && list->port == port) {
+      break;
+    } else {
+      list = list->next;
     }
-    sockfd = node->sockfd;
-    free(node);
+  }
+
+  if (list == NULL) {
+    printf("Creating new connection list for %s:%d\n", host, port);
+    list = malloc(sizeof(struct connection_list));
+    list->head = NULL;
+    list->tail = NULL;
+    list->host = malloc(sizeof(host) + 1);
+    strcpy(list->host, host);
+    list->port = port;
+    list->next = NULL;
+    if (pool->head == NULL) {
+      pool->head = list;
+      pool->tail = list;
+    } else {
+      pool->tail->next = list;
+      pool->tail = list;
+    }
+  }
+
+  if (list->head != NULL) {
+    struct connection* conn = list->head;
+    list->head = conn->next;
+    if (list->head == NULL) {
+      list->tail = NULL;
+    }
+    sockfd = conn->sockfd;
+    free(conn);
   } else {
-    sockfd = open_connection(pool);
+    sockfd = open_connection(host, port);
   }
   pthread_mutex_unlock(&(pool->mutex));
   return sockfd;
 }
 
-void release(struct conn_pool* pool, int sockfd) {
+void release_connection(struct connection_pool* pool, char* host, int port, int sockfd) {
   pthread_mutex_lock(&(pool->mutex));
-  struct node* node = malloc(sizeof(struct node));
-  node->sockfd = sockfd;
-  node->next = NULL;
-  if (pool->head == NULL && pool->tail == NULL) {
-    pool->head = node;
-    pool->tail = node;
-  } else {
-    pool->tail->next = node;
-    pool->tail = node;
+  struct connection_list* list = pool->head;
+  while (list != NULL) {
+    if (strcmp(list->host, host) == 0 && list->port == port) {
+      struct connection* conn = malloc(sizeof(struct connection));
+      conn->sockfd = sockfd;
+      conn->next = NULL;
+      if (list->head == NULL) {
+	list->head = conn;
+	list->tail = conn;
+      } else {
+	list->tail->next = conn;
+	list->tail = conn;
+      }
+      break;
+    }
+    list = list->next;
   }
   pthread_mutex_unlock(&(pool->mutex));
 }
 
-int open_connection(struct conn_pool* pool) {
+int open_connection(char* host, int port) {
   struct sockaddr_in server_addr;
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(pool->port);
-  if (inet_pton(AF_INET, pool->host, &server_addr.sin_addr) < 0) {
+  server_addr.sin_port = htons(port);
+  if (inet_pton(AF_INET, host, &server_addr.sin_addr) < 0) {
     printf("Error processing the hostname\n");
     return -1;
   }
@@ -78,7 +114,7 @@ int open_connection(struct conn_pool* pool) {
   }
 
   if (connect(sockfd, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0) {
-    printf("Failed to connect\n");
+    printf("Failed to connect to %s:%d\n", host, port);
     return -1;
   }
   return sockfd;

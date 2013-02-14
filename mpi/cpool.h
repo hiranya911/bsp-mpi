@@ -1,27 +1,29 @@
 #ifndef CPOOL_H
 #define CPOOL_H
 
-struct node {
+struct connection {
   int sockfd;
-  struct node* next;
+  struct connection* next;
 };
 
-struct conn_pool {
-  struct node* head;
-  struct node* tail;
-  pthread_mutex_t mutex;
+struct connection_list {
+  struct connection* head;
+  struct connection* tail;
   char* host;
   int port;
+  struct connection_list* next;
 };
 
-struct conn_pool* new_connection_pool();
+struct connection_pool {
+  struct connection_list* head;
+  struct connection_list* tail;
+  pthread_mutex_t mutex;
+};
 
-int get(struct conn_pool* pool);
-
-void release(struct conn_pool* pool, int sockfd);
-
-int open_connection(struct conn_pool* pool);
-
-void delete_connection_pool(struct conn_pool* pool);
+struct connection_pool* new_connection_pool();
+int get_connection(struct connection_pool* pool, char* host, int port);
+void release_connection(struct connection_pool* pool, char* host, int port, int sockfd);
+int open_connection(char* host, int port);
+void delete_connection_pool(struct connection_pool* pool);
 
 #endif
