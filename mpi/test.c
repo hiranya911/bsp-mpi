@@ -18,6 +18,16 @@ int main(int argc, char *argv[]) {
     int numbers[] = {1, 2, 3, 4, 5};
     MPI_Send(numbers, 5, MPI_INT, 1, 101, MPI_COMM_WORLD);
     printf("Sent numbers...\n");
+
+    double* matrix = malloc(sizeof(double) * 1000 * 1000);
+    int i = 0;
+    for (i = 0; i < 1000 * 1000; i++) {
+      matrix[i] = (double) i;
+    }
+    printf("%g %g\n", matrix[0], matrix[1000*1000 - 1]);
+    MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    printf("Sent matrix...\n");
+    free(matrix);
   } else {
     char output[13];
     MPI_Status status;
@@ -30,6 +40,9 @@ int main(int argc, char *argv[]) {
       printf("%d ", numbers[i]);
     }
     printf("\n");
+    double matrix[1000 * 1000];
+    MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    printf("%g %g\n", matrix[0], matrix[1000000 - 1]);
   }
   MPI_Finalize();
   return 0;

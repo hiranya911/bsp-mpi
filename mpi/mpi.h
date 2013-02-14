@@ -391,7 +391,7 @@ int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status *);
 /* int MPI_Unpack(void*, int, int *, void *, int, MPI_Datatype, MPI_Comm); */
 /* int MPI_Pack_size(int, MPI_Datatype, MPI_Comm, int *); */
 /* int MPI_Barrier(MPI_Comm ); */
-/* int MPI_Bcast(void*, int, MPI_Datatype, int, MPI_Comm ); */
+int MPI_Bcast(void*, int, MPI_Datatype, int, MPI_Comm );
 /* int MPI_Gather(void* , int, MPI_Datatype, void*, int, MPI_Datatype, int, MPI_Comm);  */
 /* int MPI_Gatherv(void* , int, MPI_Datatype, void*, int *, int *, MPI_Datatype, int, MPI_Comm);  */
 /* int MPI_Scatter(void* , int, MPI_Datatype, void*, int, MPI_Datatype, int, MPI_Comm); */

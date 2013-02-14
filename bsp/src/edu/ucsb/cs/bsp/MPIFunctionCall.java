@@ -88,32 +88,52 @@ public class MPIFunctionCall {
             writeResponse("OK\0", out);
             sync(peer);
         } else if ("MPI_Recv".equals(functionName)) {
-            sync(peer);
-            MPIMessageStore store = MPIMessageStore.getInstance();
-            BytesWritable writable;
-            while ((writable = peer.getCurrentMessage()) != null) {
-                byte[] bytes = writable.getBytes();
-                MPIFunctionCall call = new MPIFunctionCall();
-                call.consume(bytes, 0, writable.getLength());
-                store.store(call);
-            }
-
-            MPIFunctionCall functionCall = store.getMessage(this);
-            if (functionCall != null) {
-                int length = functionCall.buffer.length;
-                byte[] bytes = new byte[4];
-                for (int i = 0; i < 4; i++) {
-                    bytes[i] = (byte)(length >>> (i * 8));
+            receiveMessage(peer, out);
+        } else if ("MPI_Bcast".equals(functionName)) {
+            int source = Integer.parseInt(arguments.get(MPI_SRC));
+            arguments.put(MPI_TAG, "bcast");
+            if (source == peer.getPeerIndex()) {
+                String localPeer = peer.getPeerName();
+                byte[] bytes = serialize();
+                for (String peerName : peer.getAllPeerNames()) {
+                    if (!peerName.equals(localPeer)) {
+                        peer.send(peerName, new BytesWritable(bytes));
+                    }
                 }
-                writeResponse(bytes, out);
-                writeResponse(functionCall.buffer, out);
+                writeResponse("OK\0", out);
+                sync(peer);
             } else {
-                throw new IOException("No matching messages received");
+                receiveMessage(peer, out);
             }
         } else {
             throw new MPI2BSPException("Unrecognized function call: " + functionName);
         }
         return true;
+    }
+
+    private void receiveMessage(BSPPeer<NullWritable,NullWritable,Text,
+            NullWritable,BytesWritable> peer, OutputStream out) throws IOException {
+        sync(peer);
+        MPIMessageStore store = MPIMessageStore.getInstance();
+        BytesWritable writable;
+        while ((writable = peer.getCurrentMessage()) != null) {
+            MPIFunctionCall call = new MPIFunctionCall();
+            call.consume(writable.getBytes(), 0, writable.getLength());
+            store.store(call);
+        }
+
+        MPIFunctionCall functionCall = store.getMessage(this);
+        if (functionCall != null) {
+            int length = functionCall.buffer.length;
+            byte[] bytes = new byte[4];
+            for (int i = 0; i < 4; i++) {
+                bytes[i] = (byte)(length >>> (i * 8));
+            }
+            writeResponse(bytes, out);
+            writeResponse(functionCall.buffer, out);
+        } else {
+            throw new IOException("No matching messages received");
+        }
     }
 
     private void sync(BSPPeer<NullWritable,NullWritable,Text,

@@ -38,9 +38,9 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
     send(sockfd, input_data, in_length, 0);
   }
 
+  int bytes_read = 0;
   if (binary) {
     char temp[4];
-    int bytes_read = 0;
     while (bytes_read < 4) {
       int ret = recv(sockfd, &temp[bytes_read], 4 - bytes_read, 0);
       if (ret <= 0) {
@@ -51,10 +51,9 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
     }
 
     int* actual_length = (int*) &temp;
-    printf("Output length: %d\n", *actual_length);
     bytes_read = 0;
     while (bytes_read < *actual_length) {
-      int ret = recv(sockfd, output, *actual_length - bytes_read, 0);
+      int ret = recv(sockfd, output + bytes_read, *actual_length - bytes_read, 0);
       if (ret <= 0) {
 	exit(1);
       } else {
@@ -63,7 +62,6 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
     }
 
   } else {
-    int bytes_read = 0;
     while (bytes_read < out_length) {
       int ret = recv(sockfd, output + bytes_read, out_length - bytes_read, 0);
       if (ret <= 0) {
@@ -76,10 +74,11 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
 	}
       }
     }
+    
   }
 
   release(pool, sockfd);
-  return 0;
+  return bytes_read;
 }
 
 int MPI_Finalize(void) {
@@ -138,20 +137,63 @@ int MPI_Recv(void* buffer, int count, MPI_Datatype type, int source, int tag, MP
   }
 
   char input[64];
-  int size = count * mpi_sizeof(type);
+  int mpi_size = mpi_sizeof(type);
+  int size = count * mpi_size;
   sprintf(input, "MPI_Recv\nrcount=%d\nsource=%d\ntag=%d\ncomm=%d\ntype=%d\n\n", size, source, tag, comm, type);
-  mpi2bsp(input, NULL, 0, buffer, size, TRUE);
+  int bytes_read = mpi2bsp(input, NULL, 0, buffer, size, TRUE);
+  if (status != NULL && status != MPI_STATUS_IGNORE) {
+    status->count = bytes_read/mpi_size;
+    status->MPI_SOURCE = source;
+    status->MPI_TAG = tag;
+  }
   return 0; 
+}
+
+int MPI_Bcast(void* buffer, int count, MPI_Datatype type, int source, MPI_Comm comm) {
+  if (!INITIALIZED) {
+    return -1;
+  }
+
+  char input[64];
+  char output[8];
+  int size = count * mpi_sizeof(type);  
+  int rank;
+  MPI_Comm_rank(comm, &rank);
+  if (rank == source) {
+    sprintf(input, "MPI_Bcast\ncount=%d\nsource=%d\ncomm=%d\ntype=%d\n\n", size, source, comm, type);
+    mpi2bsp(input, buffer, size, output, 8, FALSE);
+  } else {
+    sprintf(input, "MPI_Bcast\nrcount=%d\nsource=%d\ncomm=%d\ntype=%d\n\n", size, source, comm, type);
+    int mpi_size = mpi_sizeof(type);
+    int size = count * mpi_size;
+    mpi2bsp(input, NULL, 0, buffer, size, TRUE);
+  }
+  return 0;
 }
 
 int mpi_sizeof(MPI_Datatype type) {
   switch(type) {
   case MPI_CHAR:
+  case MPI_UNSIGNED_CHAR:
     return sizeof(char);
   case MPI_INT:
+  case MPI_UNSIGNED:
     return sizeof(int);
   case MPI_DOUBLE:
     return sizeof(double);
+  case MPI_LONG:
+  case MPI_UNSIGNED_LONG:
+    return sizeof(long);
+  case MPI_SHORT:
+  case MPI_UNSIGNED_SHORT:
+    return sizeof(short);
+  case MPI_FLOAT:
+    return sizeof(float);
+  case MPI_LONG_DOUBLE:
+    return sizeof(long double);
+  case MPI_LONG_LONG_INT:
+    return sizeof(long long int);
   }
-  return 1;
+  exit(1);
+  return -1;
 }
