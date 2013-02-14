@@ -44,7 +44,6 @@ int get_connection(struct connection_pool* pool, char* host, int port) {
   }
 
   if (list == NULL) {
-    printf("Creating new connection list for %s:%d\n", host, port);
     list = malloc(sizeof(struct connection_list));
     list->head = NULL;
     list->tail = NULL;
@@ -100,6 +99,7 @@ void release_connection(struct connection_pool* pool, char* host, int port, int 
 
 int open_connection(char* host, int port) {
   struct sockaddr_in server_addr;
+  memset(&server_addr, 0, sizeof(server_addr));
   server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons(port);
   if (inet_pton(AF_INET, host, &server_addr.sin_addr) < 0) {
@@ -114,7 +114,7 @@ int open_connection(char* host, int port) {
   }
 
   if (connect(sockfd, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0) {
-    printf("Failed to connect to %s:%d\n", host, port);
+    printf("Failed to connect\n");
     return -1;
   }
   return sockfd;

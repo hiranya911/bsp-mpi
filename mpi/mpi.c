@@ -29,12 +29,12 @@ int MPI_Init(int *argc, char ***argv) {
   }
 
   INITIALIZED = TRUE;
-  char* port = /*getenv("bsp.mpi.port")*/ "51298";
+  char* port = getenv("bsp.mpi.port");
   LOCAL_PORT = atoi(port);
   POOL = new_connection_pool();
 
   char output[16384];
-  int length = mpi2bsp("MPI_Init\n\n", NULL, 0, output, 8, FALSE);
+  int length = mpi2bsp("MPI_Init\n\n", NULL, 0, output, 16384, FALSE);
   char* token = strtok(output, "\n");
   while (token != NULL) {
     int token_length = strlen(token);
@@ -172,6 +172,22 @@ int MPI_Send(void* buffer, int count, MPI_Datatype type, int dest, int tag, MPI_
   sprintf(input, "MPI_Send\ncount=%d\nsource=%d\ndest=%d\ntag=%d\ncomm=%d\ntype=%d\n\n", size, MPI_RANK, dest, tag, comm, type);
   send(sockfd, input, strlen(input), 0);
   send(sockfd, buffer, size, 0);
+
+  int bytes_read = 0;
+  char output[8];
+  while (bytes_read < 8) {
+    int ret = recv(sockfd, &output[bytes_read], 8 - bytes_read, 0);
+    if (ret <= 0) {
+      exit(1);
+    } else {
+      bytes_read += ret;
+      char* char_output = (char*) output;
+      if (char_output[bytes_read - 1] == 0) {
+	break;
+      }
+    }
+  }
+
   release_connection(POOL, info->host, info->port, sockfd);
   return 0; 
 }

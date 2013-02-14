@@ -38,6 +38,25 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
             SyncException, InterruptedException {
 
         final ServerSocket serverSocket = new ServerSocket(0);
+        write(peer, "Listening on " + serverSocket.getLocalPort());
+        String peerName = peer.getPeerName();
+        String connectionInfo = peer.getPeerIndex() + ":" +
+                peerName.substring(0, peerName.indexOf(':')) + ":" +
+                serverSocket.getLocalPort();
+        for (String remotePeer : peer.getAllPeerNames()) {
+            if (!remotePeer.equals(peerName)){
+                peer.send(remotePeer, new BytesWritable(connectionInfo.getBytes()));
+            }
+        }
+        peer.sync();
+
+        BytesWritable writable;
+        BSPConnectionInfo bspConnectionInfo = BSPConnectionInfo.getInstance();
+        while ((writable = peer.getCurrentMessage()) != null) {
+            connectionInfo = new String(writable.getBytes(), 0, writable.getLength());
+            bspConnectionInfo.add(connectionInfo);
+        }
+
         String[] env = new String[] {
             "bsp.mpi.port=" + serverSocket.getLocalPort()
         };
@@ -95,7 +114,7 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         mpiExecutable = executable.getAbsolutePath();
         Path dest = new Path(mpiExecutable);
         fs.copyToLocalFile(false, src, dest);
-        //mpiExecutable = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
+        mpiExecutable = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
     }
 
     @Override

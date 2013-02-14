@@ -18,7 +18,10 @@ public class MPIMessageStore {
     }
 
     public void store(MPIFunctionCall function) {
-        store.add(function);
+        synchronized (this) {
+            store.add(function);
+            this.notifyAll();
+        }
     }
 
     public MPIFunctionCall getMessage(MPIFunctionCall function) {
