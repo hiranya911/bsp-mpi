@@ -104,6 +104,39 @@ public class MPIFunctionCall {
             } else {
                 receiveMessage(peer, out, true);
             }
+        } else if ("MPI_Reduce".equals(functionName)) {
+            arguments.put(MPI_TAG, "reduce");
+            if (arguments.containsKey(MPI_DEST)) {
+                int targetIndex = Integer.parseInt(arguments.get(MPI_DEST));
+                String targetPeer = peer.getPeerName(targetIndex);
+                byte[] bytes = serialize();
+                peer.send(targetPeer, new BytesWritable(bytes));
+                writeResponse("OK\0", out);
+                sync(peer);
+            } else {
+                sync(peer);
+                BytesWritable writable;
+                MPIMessageStore store = MPIMessageStore.getInstance();
+                while ((writable = peer.getCurrentMessage()) != null) {
+                    MPIFunctionCall call = new MPIFunctionCall();
+                    call.consume(writable.getBytes(), 0, writable.getLength());
+                    store.store(call);
+                }
+
+                int senders = peer.getNumPeers() - 1;
+                int count = Integer.parseInt(arguments.get(MPI_RECV_COUNT));
+                byte[] output = new byte[count * senders];
+
+                for (int i = 0; i < senders; i++) {
+                    MPIFunctionCall call = store.getMessage(this);
+                    if (call == null) {
+                        throw new IOException("Failed to receive reduce data");
+                    } else {
+                        System.arraycopy(call.buffer, 0, output, i * count, count);
+                    }
+                }
+                writeResponse(output, out);
+            }
         } else {
             throw new MPI2BSPException("Unrecognized function call: " + functionName);
         }
@@ -135,7 +168,7 @@ public class MPIFunctionCall {
                 writeResponse(functionCall.buffer, out);
                 break;
             } else {
-                synchronized (store) {
+                synchronized (MPIMessageStore.getInstance()) {
                     try {
                         store.wait(5000);
                     } catch (InterruptedException ignore) {

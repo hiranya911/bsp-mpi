@@ -39,6 +39,14 @@ int main(int argc, char *argv[]) {
     MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     printf("Sent matrix...\n");
     free(matrix);
+
+    int numbers2[] = { 1, 2, 3, 4, 5 };
+    MPI_Reduce(MPI_IN_PLACE, numbers2, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    for (i = 0; i < 5; i++) {
+      printf("%d ", numbers2[i]);
+    }
+    printf("\n");
   } else {
     char output[13];
     MPI_Status status;
@@ -53,6 +61,9 @@ int main(int argc, char *argv[]) {
     double matrix[1000 * 1000];
     MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     printf("%g %g\n", matrix[0], matrix[1000000 - 1]);
+
+    int numbers2[] = { 1, 2, 3, 4, 5 };
+    MPI_Reduce(numbers2, numbers2, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
   }
   MPI_Finalize();
   return 0;

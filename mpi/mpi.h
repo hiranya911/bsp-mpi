@@ -248,6 +248,8 @@ typedef struct MPIR_Info *MPI_Info;
    It now includes the definition of MPI_Status */
 //#include "mpidefs.h"
 
+#define MPI_IN_PLACE ((void*) -1)
+
 /* MPI Error handlers.  Systems that don't support stdargs can't use
    this definition (this must occur after the mpidefs.h include,
    since USE_STDARG is set in that file)
@@ -400,7 +402,7 @@ int MPI_Bcast(void*, int, MPI_Datatype, int, MPI_Comm );
 /* int MPI_Allgatherv(void* , int, MPI_Datatype, void*, int *, int *, MPI_Datatype, MPI_Comm); */
 /* int MPI_Alltoall(void* , int, MPI_Datatype, void*, int, MPI_Datatype, MPI_Comm); */
 /* int MPI_Alltoallv(void* , int *, int *, MPI_Datatype, void*, int *, int *, MPI_Datatype, MPI_Comm); */
-/* int MPI_Reduce(void* , void*, int, MPI_Datatype, MPI_Op, int, MPI_Comm); */
+int MPI_Reduce(void* , void*, int, MPI_Datatype, MPI_Op, int, MPI_Comm);
 /* int MPI_Op_create(MPI_User_function *, int, MPI_Op *); */
 /* int MPI_Op_free( MPI_Op *); */
 /* int MPI_Allreduce(void* , void*, int, MPI_Datatype, MPI_Op, MPI_Comm); */

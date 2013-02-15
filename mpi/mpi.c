@@ -10,6 +10,8 @@
 #define FALSE 0
 
 int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_length, int binary);
+void mpi_reduce(void* source, void* arg, int count, MPI_Datatype type, MPI_Op op);
+int mpi_sizeof(MPI_Datatype type);
 
 struct connection_info {
   char* host;
@@ -228,6 +230,166 @@ int MPI_Bcast(void* buffer, int count, MPI_Datatype type, int source, MPI_Comm c
     mpi2bsp(input, NULL, 0, buffer, size, TRUE);
   }
   return 0;
+}
+
+int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype type, MPI_Op op, int root, MPI_Comm comm) {
+  if (!INITIALIZED) {
+    exit(1);
+  }
+
+  char input[128];
+  char output[8];
+  int size = count * mpi_sizeof(type);
+  if (MPI_RANK != root) {
+    sprintf(input, "MPI_Reduce\ncount=%d\nsource=%d\ndest=%d\ncomm=%d\ntype=%d\n\n", size, root, root, comm, type);
+    mpi2bsp(input, sendbuf, size, output, 8, FALSE);
+  } else {
+    if (sendbuf == recvbuf) {
+      exit(1);
+    } else if (sendbuf != MPI_IN_PLACE) {
+      memcpy(recvbuf, sendbuf, size);
+    }
+
+    sprintf(input, "MPI_Reduce\nrcount=%d\nsource=%d\ncomm=%d\ntype=%d\n\n", size, root, comm, type);
+    int sockfd = get_connection(POOL, "localhost", LOCAL_PORT);
+    if (sockfd < 0) {
+      printf("Failed to open a socket to the parent process\n");
+      exit(1);
+    }
+    send(sockfd, input, strlen(input), 0);
+    
+    int i;
+    void* temp = malloc(size);
+    for (i = 0; i < MPI_SIZE - 1; i++) {
+      int bytes_read = 0;
+      while (bytes_read < size) {
+	int ret = recv(sockfd, temp + bytes_read, size - bytes_read, 0);
+	if (ret <= 0) {
+	  exit(1);
+	} else {
+	  bytes_read += ret;
+	}
+      }
+      mpi_reduce(recvbuf, temp, count, type, op);
+    }
+    free(temp);
+  }
+  return 0;
+}
+
+void mpi_reduce(void* source, void* arg, int count, MPI_Datatype type, MPI_Op op) {
+  int i;
+  switch (op) {
+    case MPI_MAX:
+      break;
+    case MPI_MIN:
+    break;
+    case MPI_SUM:
+      switch (type) {
+	case MPI_CHAR:
+	  for (i = 0; i < count; i++)
+	    {
+	      ((char*) source)[i] += ((char*) arg)[i];
+	    }
+	  break;
+	  /*case MPI_UNSIGNED_CHAR:
+	  for (i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	  break;
+	case MPI_SHORT:
+	  unsigned short* sourcep = source;
+	  unsigned short* argp = arg;
+	  for (i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	  break;
+	case MPI_UNSIGNED_SHORT:
+	  unsigned short* sourcep = source;
+	  unsigned short* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	    break;*/
+	case MPI_INT:
+	  for(i = 0; i < count; i++)
+	    {
+	      ((int*) source)[i] += ((int*) arg)[i];
+	    }
+	  break;
+	  /*case MPI_UNSIGNED:
+	  unsigned int* sourcep = source;
+	  unsigned int* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	  break;
+	case MPI_LONG:
+	  long int* sourcep = source;
+	  long int* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	  break;
+	case MPI_UNSIGNED_LONG:
+	  unsigned long int* sourcep = source;
+	  unsigned long int* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	  break;
+	case MPI_FLOAT:
+	  float* sourcep = source;
+	  float* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	    break;*/
+	case MPI_DOUBLE:
+	case MPI_LONG_DOUBLE:
+	  for(i = 0; i < count; i++)
+	    {
+	      ((double*) source)[i] += ((double*) arg)[i];
+	    }
+	  break;
+	  /*case MPI_LONG_LONG_INT:
+	  long long int* sourcep = source;
+	  long long int* argp = arg;
+	  for(i = 0; i < count; i++)
+	    {
+	      sourcep[i] += argp[i];
+	    }
+	    break;*/
+	      
+	}
+      break;
+    case MPI_PROD:
+      break;
+    case MPI_LAND:
+      break;
+    case MPI_BAND:
+      break;
+    case MPI_LOR:
+      break;
+    case MPI_BOR:
+      break;
+    case MPI_LXOR:
+      break;
+    case MPI_BXOR:
+      break;
+    case MPI_MINLOC:
+      break;
+    case MPI_MAXLOC:
+      break;
+    }
+    
 }
 
 int mpi_sizeof(MPI_Datatype type) {
