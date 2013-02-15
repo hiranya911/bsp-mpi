@@ -155,7 +155,7 @@ int MPI_Send(void* buffer, int count, MPI_Datatype type, int dest, int tag, MPI_
     return -1;
   }
 
-  char input[64];
+  char input[128];
   int size = count * mpi_sizeof(type);
   if (dest >= MPI_SIZE || dest == MPI_RANK) {
     printf("Illegal destination ID: %d\n", dest);
@@ -215,7 +215,7 @@ int MPI_Bcast(void* buffer, int count, MPI_Datatype type, int source, MPI_Comm c
     return -1;
   }
 
-  char input[64];
+  char input[128];
   char output[8];
   int size = count * mpi_sizeof(type);  
   if (MPI_RANK == source) {

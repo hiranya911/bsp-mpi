@@ -4,6 +4,8 @@
 
 #include "mpi.h"
 
+int count = 1000 * 1000;
+
 int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
   int rank;
@@ -13,18 +15,27 @@ int main(int argc, char *argv[]) {
   printf("I'm %d out of %d nodes\n", rank, size);
   char* data = "Hello World\n";
   if (rank == 0) {
+    FILE* log = fopen("/tmp/main.log", "a");
+    fprintf(log, "Starting\n");
+    fflush(log);
+    int i;
     MPI_Send(data, strlen(data) + 1, MPI_CHAR, 1, 100, MPI_COMM_WORLD);
     printf("Sent message...\n");
-    int numbers[] = {1, 2, 3, 4, 5};
-    MPI_Send(numbers, 5, MPI_INT, 1, 101, MPI_COMM_WORLD);
+    
+    double* numbers = malloc(sizeof(double) * count);
+    for (i = 0; i < count; i++) {
+      numbers[i] = i;
+    }
+    fprintf(log, "Ready to send\n");
+    fflush(log);
+    MPI_Send(numbers, count, MPI_DOUBLE, 1, 101, MPI_COMM_WORLD);
     printf("Sent numbers...\n");
+    free(numbers);
 
     double* matrix = malloc(sizeof(double) * 1000 * 1000);
-    int i = 0;
     for (i = 0; i < 1000 * 1000; i++) {
       matrix[i] = (double) i;
     }
-    printf("%g %g\n", matrix[0], matrix[1000*1000 - 1]);
     MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     printf("Sent matrix...\n");
     free(matrix);
@@ -33,13 +44,12 @@ int main(int argc, char *argv[]) {
     MPI_Status status;
     MPI_Recv(output, 13, MPI_CHAR, 0, 100, MPI_COMM_WORLD, &status);
     printf("%s", output);
-    int numbers[5];
-    MPI_Recv(numbers, 5, MPI_INT, 0, 101, MPI_COMM_WORLD, &status);
-    int i;
-    for (i = 0; i < 5; i++) {
-      printf("%d ", numbers[i]);
-    }
+    double* numbers = malloc(sizeof(double) * count);
+    MPI_Recv(numbers, count, MPI_DOUBLE, 0, 101, MPI_COMM_WORLD, &status);
+    printf("%g %g\n", numbers[0], numbers[count - 1]);
     printf("\n");
+    free(numbers);
+
     double matrix[1000 * 1000];
     MPI_Bcast(matrix, 1000 * 1000, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     printf("%g %g\n", matrix[0], matrix[1000000 - 1]);
