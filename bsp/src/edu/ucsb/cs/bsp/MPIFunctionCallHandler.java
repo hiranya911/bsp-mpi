@@ -42,6 +42,7 @@ public class MPIFunctionCallHandler implements Runnable {
                 if (function.isComplete()) {
                     if (!function.execute(peer, out)) {
                         closeSilently();
+                        return;
                     }
                     break;
                 }

@@ -47,7 +47,7 @@ int get_connection(struct connection_pool* pool, char* host, int port) {
     list = malloc(sizeof(struct connection_list));
     list->head = NULL;
     list->tail = NULL;
-    list->host = malloc(sizeof(host) + 1);
+    list->host = malloc(strlen(host) + 1);
     strcpy(list->host, host);
     list->port = port;
     list->next = NULL;
