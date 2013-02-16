@@ -99,8 +99,8 @@ public class MPIFunctionCall {
                         peer.send(peerName, new BytesWritable(bytes));
                     }
                 }
-                writeResponse("OK\0", out);
                 sync(peer);
+                writeResponse("OK\0", out);
             } else {
                 receiveMessage(peer, out, true);
             }
@@ -111,8 +111,8 @@ public class MPIFunctionCall {
                 String targetPeer = peer.getPeerName(targetIndex);
                 byte[] bytes = serialize();
                 peer.send(targetPeer, new BytesWritable(bytes));
-                writeResponse("OK\0", out);
                 sync(peer);
+                writeResponse("OK\0", out);
             } else {
                 sync(peer);
                 BytesWritable writable;
@@ -167,7 +167,7 @@ public class MPIFunctionCall {
                 writeResponse(bytes, out);
                 writeResponse(functionCall.buffer, out);
                 break;
-            } else {
+            } else if (!bsp) {
                 synchronized (MPIMessageStore.getInstance()) {
                     try {
                         store.wait(5000);
