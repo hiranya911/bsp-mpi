@@ -62,7 +62,7 @@ int MPI_Init(int *argc, char ***argv) {
 }
 
 int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_length, int binary) {
-  int sockfd = open_connection("localhost", LOCAL_PORT);
+  int sockfd = get_connection(POOL, "127.0.0.1", LOCAL_PORT);
   if (sockfd < 0) {
     printf("Failed to open a socket to the parent process\n");
     exit(1);
@@ -111,8 +111,7 @@ int mpi2bsp(char* input, void* input_data, int in_length, void* output, int out_
     
   }
 
-  close(sockfd);
-  //release_connection(POOL, "localhost", LOCAL_PORT, sockfd);
+  release_connection(POOL, "127.0.0.1", LOCAL_PORT, sockfd);
   return bytes_read;
 }
 
@@ -166,7 +165,7 @@ int MPI_Send(void* buffer, int count, MPI_Datatype type, int dest, int tag, MPI_
   }
 
   struct connection_info* info = CONNECTION_INFO + dest;
-  int sockfd = open_connection(info->host, info->port);
+  int sockfd = get_connection(POOL, info->host, info->port);
   if (sockfd < 0) {
     printf("Failed to open a socket to remote process\n");
     exit(1);
@@ -191,8 +190,7 @@ int MPI_Send(void* buffer, int count, MPI_Datatype type, int dest, int tag, MPI_
     }
   }
 
-  close(sockfd);
-  //release_connection(POOL, info->host, info->port, sockfd);
+  release_connection(POOL, info->host, info->port, sockfd);
   return 0; 
 }
 
@@ -253,7 +251,7 @@ int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype type, MPI_O
     }
 
     sprintf(input, "MPI_Reduce\nrcount=%d\nsource=%d\ncomm=%d\ntype=%d\n\n", size, root, comm, type);
-    int sockfd = open_connection("localhost", LOCAL_PORT);
+    int sockfd = get_connection(POOL, "127.0.0.1", LOCAL_PORT);
     if (sockfd < 0) {
       printf("Failed to open a socket to the parent process\n");
       exit(1);
@@ -274,7 +272,7 @@ int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype type, MPI_O
       }
       mpi_reduce(recvbuf, temp, count, type, op);
     }
-    close(sockfd);
+    release_connection(POOL, "127.0.0.1", LOCAL_PORT, sockfd);
     free(temp);
   }
   return 0;
