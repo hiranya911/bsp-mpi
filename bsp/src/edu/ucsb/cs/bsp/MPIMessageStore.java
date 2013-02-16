@@ -1,11 +1,11 @@
 package edu.ucsb.cs.bsp;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MPIMessageStore {
 
-    private Set<MPIFunctionCall> store = new HashSet<MPIFunctionCall>();
+    private List<MPIFunctionCall> store = new ArrayList<MPIFunctionCall>();
 
     private static final MPIMessageStore instance = new MPIMessageStore();
 

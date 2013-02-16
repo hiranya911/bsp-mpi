@@ -114,7 +114,7 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         mpiExecutable = executable.getAbsolutePath();
         Path dest = new Path(mpiExecutable);
         fs.copyToLocalFile(false, src, dest);
-        mpiExecutable = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
+        //mpiExecutable = "/Users/hiranya/Projects/bsp-mpi/impl/bsp-mpi/mpi/a.out";
     }
 
     @Override
