@@ -24,7 +24,7 @@ public class MPIMessageStore {
         }
     }
 
-    public MPIFunctionCall getMessage(MPIFunctionCall function) {
+    public synchronized MPIFunctionCall getMessage(MPIFunctionCall function) {
         MPIFunctionCall functionCall = null;
         for (MPIFunctionCall call : store) {
             if (call.getArgument(MPIFunctionCall.MPI_TYPE).equals(

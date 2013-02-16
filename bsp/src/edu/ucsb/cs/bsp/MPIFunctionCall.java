@@ -99,6 +99,9 @@ public class MPIFunctionCall {
                         peer.send(peerName, new BytesWritable(bytes));
                     }
                 }
+                // Sync before sending a response
+                // Otherwise the MPI code will be unblocked and make more
+                // MPI function calls
                 sync(peer);
                 writeResponse("OK\0", out);
             } else {

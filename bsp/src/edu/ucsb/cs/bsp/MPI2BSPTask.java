@@ -11,6 +11,7 @@ import org.apache.hama.bsp.BSPPeer;
 import org.apache.hama.bsp.sync.SyncException;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URI;
@@ -40,9 +41,15 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
         final ServerSocket serverSocket = new ServerSocket(0);
         write(peer, "Listening on " + serverSocket.getLocalPort());
         String peerName = peer.getPeerName();
+
+        // Sometimes Hama returns the hostname as peer name
+        // Resolve the hostname to obtain an IP address
+        String host = peerName.substring(0, peerName.indexOf(':'));
+        InetAddress hostAddress = InetAddress.getByName(host);
+
+        // Construct strings of form index:IP:port
         String connectionInfo = peer.getPeerIndex() + ":" +
-                peerName.substring(0, peerName.indexOf(':')) + ":" +
-                serverSocket.getLocalPort();
+                hostAddress.getHostAddress() + ":" + serverSocket.getLocalPort();
         for (String remotePeer : peer.getAllPeerNames()) {
             if (!remotePeer.equals(peerName)){
                 peer.send(remotePeer, new BytesWritable(connectionInfo.getBytes()));
