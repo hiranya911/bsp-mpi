@@ -29,40 +29,67 @@ public class MPIFunctionCall {
     private boolean complete = false;
 
     public void consume(byte[] data, int offset, int limit) {
-        for (int i = offset; i < limit; i++) {
-            if (complete) {
-                throw new MPI2BSPException("Received more bytes than expected");
-            }
+        if (buffer == null) {
+            readHeader(data, offset, limit);
+        } else {
+            readBody(data, offset, limit);
+        }
+    }
 
-            if (buffer == null) {
-                if (data[i] == '\n') {
-                    if (prev == '\n') {
-                        if (arguments.containsKey(MPI_COUNT)) {
-                            int count = Integer.parseInt(arguments.get(MPI_COUNT));
-                            buffer = new byte[count];
-                        } else {
-                            complete = true;
+    private void readHeader(byte[] data, int offset, int limit) {
+        if (complete) {
+            throw new MPI2BSPException("Received more bytes than expected");
+        }
+
+        int pos = offset;
+        for (; pos < limit; pos++) {
+            if (data[pos] == '\n') {
+                if (prev == '\n') {
+                    if (arguments.containsKey(MPI_COUNT)) {
+                        int count = Integer.parseInt(arguments.get(MPI_COUNT));
+                        buffer = new byte[count];
+                        if (limit - pos > 1) {
+                            readBody(data, ++pos, limit);
                         }
-                    } else if (functionName == null) {
-                        functionName = builder.toString();
+                        return;
                     } else {
-                        String argument = builder.toString();
-                        int index = argument.indexOf('=');
-                        String key = argument.substring(0, index);
-                        String value = argument.substring(index + 1);
-                        arguments.put(key, value);
+                        complete = true;
+                        if (limit - pos > 1) {
+                            throw new MPI2BSPException("Received more bytes than expected");
+                        }
                     }
-                    builder = new StringBuilder();
+                } else if (functionName == null) {
+                    functionName = builder.toString();
                 } else {
-                    builder.append((char) data[i]);
+                    String argument = builder.toString();
+                    int index = argument.indexOf('=');
+                    String key = argument.substring(0, index);
+                    String value = argument.substring(index + 1);
+                    arguments.put(key, value);
                 }
-                prev = data[i];
+                builder = new StringBuilder();
+            } else {
+                builder.append((char) data[pos]);
+            }
+            prev = data[pos];
+        }
+    }
 
-            } else if (bufferPosition < buffer.length) {
-                buffer[bufferPosition++] = data[i];
+    private void readBody(byte[] data, int offset, int limit) {
+        if (complete) {
+            throw new MPI2BSPException("Received more bytes than expected");
+        }
+
+        if (bufferPosition < buffer.length) {
+            int count = limit - offset;
+            if (count <= buffer.length - bufferPosition) {
+                System.arraycopy(data, offset, buffer, bufferPosition, count);
+                bufferPosition += count;
                 if (bufferPosition == buffer.length) {
                     complete = true;
                 }
+            } else {
+                throw new MPI2BSPException("Received more bytes than expected");
             }
         }
     }
