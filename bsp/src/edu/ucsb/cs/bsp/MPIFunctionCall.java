@@ -76,10 +76,6 @@ public class MPIFunctionCall {
     }
 
     private void readBody(byte[] data, int offset, int limit) {
-        if (complete) {
-            throw new MPI2BSPException("Received more bytes than expected");
-        }
-
         if (bufferPosition < buffer.length) {
             int count = limit - offset;
             if (count <= buffer.length - bufferPosition) {
@@ -91,6 +87,8 @@ public class MPIFunctionCall {
             } else {
                 throw new MPI2BSPException("Received more bytes than expected");
             }
+        } else {
+            throw new MPI2BSPException("Received more bytes than expected");
         }
     }
 
