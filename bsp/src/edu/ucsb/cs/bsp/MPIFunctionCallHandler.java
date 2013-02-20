@@ -36,35 +36,22 @@ public class MPIFunctionCallHandler implements Runnable {
             OutputStream out = socket.getOutputStream();
             byte[] data = new byte[8096];
             int length;
-            while (true) {
-                boolean dirty = false;
-                MPIFunctionCall function = new MPIFunctionCall();
-                while((length = in.read(data)) != -1) {
-                    dirty = true;
-                    function.consume(data, 0, length);
-                    if (function.isComplete()) {
-                        dirty = false;
-                        if (!function.execute(peer, out)) {
-                            closeSilently();
-                            return;
-                        }
-                        break;
-                    }
-                }
-
-                if (!function.isComplete()) {
-                    if (dirty) {
-                        // We were cut off while in the middle of reading
-                        // something. Not good.
-                        throw new IOException("Socket closed prematurely: " +
-                                function.toString());
-                    } else {
-                        // Remote process exited gracefully - Not bad
-                        socket.close();
+            MPIFunctionCall function = new MPIFunctionCall();
+            while((length = in.read(data)) != -1) {
+                function.consume(data, 0, length);
+                if (function.isComplete()) {
+                    if (!function.execute(peer, out)) {
+                        closeSilently();
                         return;
                     }
+                    break;
                 }
             }
+
+            if (!function.isComplete()) {
+                throw new IOException("Socket closed prematurely: " + function.toString());
+            }
+            socket.close();
         } catch (Exception e) {
             closeSilently();
         }
