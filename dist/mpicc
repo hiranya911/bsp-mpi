@@ -1,0 +1,10 @@
+#!/bin/bash
+BASEDIR=$(dirname $0)
+extension=`echo $1 |awk -F . '{print $NF}'`
+if [ $extension == "c" ];then
+  echo "Compiling with the C compiler"
+  gcc $1 $BASEDIR/lib/cpool $BASEDIR/lib/mpi
+elif [ $extension == "cpp" ];then
+  echo "Compiling with the C++ compiler"
+  g++ $1 $BASEDIR/lib/cpool $BASEDIR/lib/mpi
+fi

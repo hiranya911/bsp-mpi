@@ -1,0 +1,15 @@
+#!/bin/bash
+
+BASEDIR=$(dirname $0)
+HAMA_HOME=$BASEDIR/hama-0.6.0
+HADOOP_HOME=$BASEDIR/hadoop-1.1.1
+
+./start-hama.sh
+MASTER_NODE=`head -n 1 $PBS_NODEFILE`
+if [ "`hostname`" == "$MASTER_NODE.local" ]; then
+    $HAMA_HOME/bin/hama jar $BASEDIR/mpi2bsp.jar $2 $1
+fi
+
+mkdir -p ~/tmp/output/`hostname`
+cp -r /tmp/output/* ~/tmp/output/`hostname`
+./stop-hama.sh
