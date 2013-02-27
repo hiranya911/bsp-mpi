@@ -114,7 +114,7 @@ int open_connection(char* host, int port) {
   }
 
   if (connect(sockfd, (struct sockaddr*) &server_addr, sizeof(server_addr)) < 0) {
-    printf("Failed to connect\n");
+    printf("Failed to connect to %s:%d\n", host, port);
     return -1;
   }
   return sockfd;
