@@ -462,7 +462,7 @@ int MPI_Comm_rank(MPI_Comm, int *);
 /* int MPI_Errhandler_free(MPI_Errhandler *); */
 /* int MPI_Error_string(int, char *, int *); */
 /* int MPI_Error_class(int, int *); */
-/* double MPI_Wtime(void); */
+double MPI_Wtime(void);
 /* double MPI_Wtick(void); */
 #ifndef MPI_Wtime
   //double PMPI_Wtime(void);

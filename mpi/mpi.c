@@ -280,6 +280,12 @@ int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype type, MPI_O
   return 0;
 }
 
+double MPI_Wtime() {
+  struct timeval t;
+  gettimeofday(&t, NULL);
+  return t.tv_sec + (t.tv_usec/1000000.0);
+}
+
 void mpi_reduce(void* source, void* arg, int count, MPI_Datatype type, MPI_Op op) {
   int i;
   switch (op) {

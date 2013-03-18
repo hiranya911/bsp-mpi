@@ -132,7 +132,6 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
     public static void write(BSPPeer<NullWritable, NullWritable, Text,
             NullWritable, BytesWritable> peer, String msg) throws IOException {
         peer.write(new Text(msg), NullWritable.get());
-        //System.out.println(msg);
     }
 
     private class MPIDeadProcessCallback implements DeadProcessCallback {
@@ -146,7 +145,6 @@ public class MPI2BSPTask extends BSP<NullWritable,NullWritable,Text,
             this.status = status;
         }
 
-        @Override
         public void notifyDeadProcess(int s) {
             if (status.compareAndSet(true, false)) {
                 try {
