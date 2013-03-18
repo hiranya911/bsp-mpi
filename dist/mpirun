@@ -4,12 +4,116 @@ BASEDIR=$(dirname $0)
 HAMA_HOME=$BASEDIR/hama-0.6.0
 HADOOP_HOME=$BASEDIR/hadoop-1.1.1
 
-./start-hama.sh
-MASTER_NODE=`head -n 1 $PBS_NODEFILE`
-if [ "`hostname`" == "$MASTER_NODE.local" ]; then
-    $HAMA_HOME/bin/hama jar $BASEDIR/mpi2bsp.jar $2 $1
+function print_usage {
+    echo "Usage: ./mpirun -np TASKS -machinefile MACHINEFILE -f [ -e ] EXECUTABLE"
+    echo "       -np: Number of bsp-mpi tasks to run"
+    echo "       -machinefile: list of hostnames to use for the cluster"
+    echo "           the first node in the list is used as the namenode"
+    echo "           default:\$PBS_NODEFILE"
+    echo "       -f: run all commands even if this is not the master node"
+    echo "           by default only the master runs the job so all nodes can "
+    echo "           run the same script"
+    echo "       -e: the mpi executable to run"
+    echo "           if -e is not present, the first non-option argument is "
+    echo "           used as the executable"
+}
+
+# initialize arguments
+num_tasks=""
+job_exec=""
+machine_file="$PBS_NODEFILE"
+force="false"
+
+# parse arguments
+while :
+do
+    case "$1" in
+        -h | --help | -\?)
+            print_usage
+            exit 0
+            ;;
+        -np | -n)
+            num_tasks=$2
+            shift 2
+            ;;
+        -np=*)
+            num_tasks=${1#*=}
+            shift
+            ;;
+        -m | -machinefile | --machinefile | -hostfile | --hostfile)
+            if [ ! -e "$2" ]; then
+                echo "-m must specify a machine file"
+                print_usage
+                exit 1
+            else
+                machine_file="$2"
+            fi
+            shift 2
+            ;;
+        -e | -exec)
+            job_exec="$2"
+            shift 2
+            ;;
+        -f)
+            force="true"
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "unknown option to mpirun: $1" >&2
+            print_usage
+            exit 1
+            ;;
+        *) #we just parsed the last option so break
+            break
+            ;;
+    esac
+done
+
+#do argument checking
+if [ -z "$num_tasks" -o -z "$machine_file" ]; then
+    echo "missing required argument";
+    print_usage
+    exit 1
+elif [ -z "$1" -a -z "job_exec" ]; then
+    echo "must specify an executable to run";
+    print_usage
+    exit 1;
 fi
 
-mkdir -p ~/tmp/output/`hostname`
-cp -r /tmp/output/* ~/tmp/output/`hostname`
-./stop-hama.sh
+if [ -z "$job_exec" ]; then
+    job_exec="$1"
+fi
+
+if [ ! -x "$job_exec" ]; then
+    echo "program argument must be an executable file";
+    print_usage
+    exit 1
+fi
+
+if [ force == "true" ]; then
+    ./start-hama.sh -f -m "$machine_file" > /dev/null
+else
+    ./start-hama.sh -m "$machine_file" > /dev/null
+fi
+
+MASTER_NODE=`head -n 1 $machine_file`
+THIS_NODE=`hostname -s`
+
+if [ "$THIS_NODE" == "$MASTER_NODE" -o "$force" == "true" ]; then
+    $HAMA_HOME/bin/hama jar $BASEDIR/mpi2bsp.jar $job_exec $num_tasks
+    #echo "output========";
+    cat /tmp/output/*
+    #echo "========output";
+    mkdir -p ~/tmp/output/$THIS_NODE
+    cp -r /tmp/output/* ~/tmp/output/$THIS_NODE
+fi
+
+if [ force == "true" ]; then
+    ./stop-hama.sh -f -m "$machine_file" > /dev/null
+else
+    ./stop-hama.sh -m "$machine_file" > /dev/null
+fi
