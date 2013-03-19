@@ -65,6 +65,13 @@ public class MPIFunctionCallHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
+            try {
+                MPI2BSPTask.write(peer, "A fatal exception occurred: " + e.getMessage());
+                for (StackTraceElement element : e.getStackTrace()) {
+                    MPI2BSPTask.write(peer, element.toString());
+                }
+            } catch (IOException ignored) {
+            }
             closeSilently();
         }
     }
